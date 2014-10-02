@@ -283,11 +283,13 @@ class UploadPage(Gtk.Box):
             self.conn.commit()
             self.conn.close()
 
-    def add_task(self, dir_name=None):
+    def add_task(self, dir_name=None, upload_dir=False):
+        change_upload_type_response = 1
         file_dialog = Gtk.FileChooserDialog(
             _('Choose a file..'), self.app.window,
-            Gtk.FileChooserAction.OPEN,
+            Gtk.FileChooserAction.SELECT_FOLDER if upload_dir else Gtk.FileChooserAction.OPEN,
             (Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
+            'Select Files' if upload_dir else 'Select Folders', change_upload_type_response,
             Gtk.STOCK_OK, Gtk.ResponseType.OK))
         file_dialog.set_modal(True)
         file_dialog.set_select_multiple(True)
@@ -295,8 +297,11 @@ class UploadPage(Gtk.Box):
         response = file_dialog.run()
         if response != Gtk.ResponseType.OK:
             file_dialog.destroy()
+            if response == change_upload_type_response:
+                self.add_task(dir_name, not upload_dir)
             return
         source_paths = file_dialog.get_filenames()
+        print('add_task', source_paths, dir_name, upload_dir)
         file_dialog.destroy()
         if source_paths:
             self.add_file_tasks(source_paths, dir_name)
@@ -309,6 +314,7 @@ class UploadPage(Gtk.Box):
         dir_name    - 文件在服务器上的父目录, 如果为None的话, 会弹出一个
                       对话框让用户来选择一个目录.
         '''
+        print('add_file_tasks', source_paths, dir_name)
         def scan_folders(folder_path):
             file_list = os.listdir(folder_path)
             source_paths = [os.path.join(folder_path, f) for f in file_list]
@@ -340,7 +346,8 @@ class UploadPage(Gtk.Box):
         '''创建新的上传任务'''
         row = self.get_task_db(source_path)
         if row:
-            return
+            print('duplicated', row)
+            #return
         source_dir, filename = os.path.split(source_path)
         
         path = os.path.join(dir_name, filename)
@@ -348,6 +355,7 @@ class UploadPage(Gtk.Box):
         total_size = util.get_human_size(size)[0]
         tooltip = gutil.escape(
                 _('From {0}\nTo {1}').format(source_path, path))
+        print('add_file_task', tooltip)
         if size < 2 ** 27:           # 128M 
             threshold = 2 ** 17      # 128K
         elif size < 2 ** 29:         # 512M
@@ -373,6 +381,7 @@ class UploadPage(Gtk.Box):
             ]
         row_id = self.add_task_db(task)
         task.insert(0, row_id)
+        print('add_file_task', task, row_id)
         self.liststore.append(task)
 
     def start_task(self, row, scan=True):
